@@ -1,0 +1,62 @@
+/* Eletrônica Digital
+ *  Projeto final
+ *  Controle de velocidade de motor DC em malha fechada
+ *  Alunos: Erick Gabriel e Luigi Luz
+ *  Código main
+ */
+
+// Obs: ainda falta a função para definir se gira no sentido horário ou no senti anti-horário
+
+#include "controleMotor.h"
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+extern volatile int vel;
+extern volatile int PID;
+extern volatile int setpoint;
+extern volatile int erro;
+extern volatile int conta;
+//extern volatile unsigned int kt;
+
+// ---- configuracao do LCD via I2C ----
+
+LiquidCrystal_I2C lcd(0x3f,2,1,0,4,5,6,7,3, POSITIVE);
+
+// --------------------------------------------------------------------------
+
+// ---- Funcao para imprimir dados no LCD ---
+void printLCD(){
+  if (conta == 16){
+  lcd.clear();
+  lcd.setBacklight(HIGH);
+  lcd.setCursor(0,0);
+  lcd.print("SP = ");
+  lcd.print(setpoint);
+  lcd.print("rpm");
+  lcd.setCursor(0,1);
+  lcd.print("MV = ");
+  lcd.print(vel);
+  lcd.print("rpm");
+  }
+  else if(conta > 16)
+  {
+    conta = 0;
+    }
+  }
+
+void setup() {
+Serial.begin(9600);
+//LiquidCrystal_I2C lcd(0x3f,2,1,0,4,5,6,7,3, POSITIVE);
+lcd.begin(16,2);
+confT1();
+confEI();
+cfgADC();
+}
+
+void loop() {
+horario();
+ligaPWM();
+printLCD();
+Serial.print(vel);
+}
+
