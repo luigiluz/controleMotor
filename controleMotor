@@ -54,7 +54,6 @@ cfgADC();
 }
 
 void loop() {
-horario();
 ligaPWM();
 printLCD();
 Serial.print(vel);
