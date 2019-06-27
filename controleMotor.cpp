@@ -31,12 +31,12 @@ int vel2Pwm (int vel){
   int pwm;
     if (vel < 230){
       pwm = 0;}
-    else if((pwm >= 49) && (pwm <= 255)){
-      vel = 9*pwm - 211;
+    else if((vel >= 230) && (vel <= 2084)){
+      pwm = (vel+211)/9;
       }
     else{
-      vel = 2084;}
-    return vel;}
+      pwm = 255;}
+    return pwm;}
 
 // --------------------------------------------------------------------------
 
@@ -176,7 +176,7 @@ PORTD |= ((1<<PD7)|(1<<PD6));
 // ---- Variaveis volatile que serão utilizadas ---- 
 
 volatile int pulsos; // Indicará a quantidade de pulsos
-volatile unsigned long vel = 0; // Indicará a velocidade medida
+volatile long vel = 0; // Indicará a velocidade medida
 volatile unsigned long mult = 0;
 volatile unsigned int pulsos_por_volta = 40;
 volatile unsigned int kt = 1875;
@@ -190,28 +190,32 @@ volatile int valor1 = 0; //variaveis que armazenarao o valor medido no adc
 // ---- Função que implementa o controlador PID ---- 
 
 volatile int setpoint; // = pwm2Vel(adc2Pwm(valor0,valor1)); // Armenará o PWM resultante da leitura dos ADCs
-volatile unsigned int PID = 0;
-volatile unsigned int erro;
-volatile unsigned int erro_pre = 0;
-volatile unsigned int erro_sum = 0;
-volatile unsigned int erro_sub = 0;
-volatile unsigned int conta;
+volatile int PID = 0;
+volatile int erro = 0;
+volatile int erro_pre = 0;
+volatile long erro_sum = 0;
+volatile int erro_sub = 0;
+volatile int conta;
 
 
 void cPID(){
+  
   erro = (setpoint - vel);
   PID = (erro>>1) + (erro_sum>>3) + (erro_sum>>4) + (erro_sub>>3) + (erro_sub>>4);
   // Analisar esse if para controle do sentido de rotação
-  
-  if (PID > 0){ // Girar no sentido horario
+  if ((PID > 0) && (PID<2084)){ // Girar no sentido horario
   horario();
   PID = PID;}
+  else if(PID > 2084){
+    PID = 2084;}
   else { // Girar no sentido anti-horario
-  antiHorario();
-  PID = PID - 2*PID;}
-    erro_pre = erro;
-    erro_sub = erro - erro_pre;
-    erro_sum = erro + erro_sum;
+    //antiHorario();
+    PID = 0;}
+  erro_pre = erro;
+  erro_sub = erro - erro_pre;
+  erro_sum = erro + erro_sum;
+  if (erro_sum >20000) {erro_sum = 20000;}
+  if (erro_sum <-20000) {erro_sum = -20000;}
 }
 
 // --------------------------------------------------------------------------
@@ -238,7 +242,7 @@ ISR(INT0_vect){
   // Desativamos a interrupção externa
   // (Debouncing) Damos um pequeno delay para evitar trepidações
   EIMSK &= ~(1<<INT0);
-  delayMicroseconds(100);
+  delayMicroseconds(50);
   pulsos++;
   // Reativamos a interrupção externa
   EIMSK |= (1<<INT0);
@@ -250,11 +254,10 @@ ISR(INT0_vect){
 
 ISR(TIMER1_OVF_vect){
 cli();
-vel = (kt*pulsos)/pulsos_por_volta; // Calculamos o valor da velocidade
+vel = ((long)kt*(long)pulsos)/pulsos_por_volta; // Calculamos o valor da velocidade
 setpoint = pwm2Vel(adc2Pwm(valor0,valor1)); // Calcula a velocidade requisitada
 cPID(); // Executamos a função cPID() para calcular o novo valor do PWM
-if (PID >0){OCR1A = vel2Pwm(PID);}
-else {OCR1A = vel2Pwm(PID - 2*PID);}//
+OCR1A = vel2Pwm(PID);
 //vel2Pwm(PID); // Atribuimos o valor do PWM resultante do controlador PID
 pulsos = 0;
 conta++;
@@ -266,7 +269,7 @@ sei();
 // --------------------------------------------------------------------------
 
 // ---- Rotina de interrupção do ADC ---- 
-
+volatile int erro_adc;
 ISR(ADC_vect){ //Ocorre na conclusao da conversao
 cli();
   //logica para multiplexar as entradas A0 e A1
@@ -280,6 +283,7 @@ cli();
    else      //caso contrario, se o lsb de ADMUX estiver em 1, ou seja, a porta selecionada e a A1
    {
     valor1 = ADC;   //le o valor
+    erro_adc = valor0 - valor1; // calculo do erro dos adcs
     disp1 = 1;      //avisa que terminou
     }
 sei();
